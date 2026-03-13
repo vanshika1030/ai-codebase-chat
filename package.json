@@ -1,0 +1,28 @@
+{
+  "name": "ai-codebase-chat",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vanshika1030/ai-codebase-chat.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/vanshika1030/ai-codebase-chat/issues"
+  },
+  "homepage": "https://github.com/vanshika1030/ai-codebase-chat#readme",
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "langchain": "^1.2.32",
+    "openai": "^6.28.0",
+    "simple-git": "^3.33.0"
+  }
+}
