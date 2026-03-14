@@ -1,49 +1,76 @@
-require("dotenv").config();
+const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
-const OpenAI = require("openai");
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
 
 function readFiles(dir) {
+
   let code = "";
 
   const files = fs.readdirSync(dir);
 
-  files.forEach(file => {
+  for (const file of files) {
+
+      if (
+      file === "node_modules" ||
+      file === ".git" ||
+      file === "dist" ||
+      file === "build" ||
+      file === "coverage"
+    ) continue;
+
     const fullPath = path.join(dir, file);
 
-    if (fs.lstatSync(fullPath).isDirectory()) {
+    const stat = fs.statSync(fullPath);
+
+    if (stat.isDirectory()) {
+
+      if (file === "node_modules" || file === ".git") continue;
+
       code += readFiles(fullPath);
-    } else if (file.endsWith(".js") || file.endsWith(".java") || file.endsWith(".py")) {
-      code += fs.readFileSync(fullPath, "utf8") + "\n";
+
+    } else {
+
+      try {
+        code += fs.readFileSync(fullPath, "utf8") + "\n";
+      } catch (err) {}
+
     }
-  });
+
+  }
 
   return code;
 }
 
 async function askAI(question, repoPath) {
 
-  const codebase = readFiles(repoPath).slice(0, 12000);
+  const code = readFiles(repoPath);
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: "You are an expert software engineer explaining a codebase."
-      },
-      {
-        role: "user",
-        content: `Here is the code:\n${codebase}\n\nQuestion:${question}`
+  const prompt = `
+You are an expert software engineer.
+
+Here is a codebase:
+${code}
+
+Question: ${question}
+`;
+
+  const response = await axios.post(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      model: "deepseek/deepseek-chat",
+      messages: [
+        { role: "user", content: prompt }
+      ]
+    },
+    {
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json"
       }
-    ]
-  });
+    }
+  );
 
-  return response.choices[0].message.content;
+  return response.data.choices[0].message.content;
 }
 
 module.exports = askAI;

@@ -19,9 +19,13 @@
   },
   "homepage": "https://github.com/vanshika1030/ai-codebase-chat#readme",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.13.6",
+    "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "langchain": "^1.2.32",
+    "nodemon": "^3.1.14",
     "openai": "^6.28.0",
     "simple-git": "^3.33.0"
   }
