@@ -18,7 +18,7 @@ const ignoredFolders = [
 // read repo files recursively
 function readFiles(dir) {
 
-  let code = "";
+  let filesData = [];
 
   const files = fs.readdirSync(dir);
 
@@ -32,20 +32,22 @@ function readFiles(dir) {
 
       if (ignoredFolders.includes(file)) continue;
 
-      code += readFiles(fullPath);
+      filesData = filesData.concat(readFiles(fullPath));
 
     } 
     else {
 
-      // only read allowed file types
       if (!allowedExtensions.some(ext => file.endsWith(ext))) continue;
 
       try {
 
         const content = fs.readFileSync(fullPath, "utf8");
 
-        code += `\nFILE: ${file}\n`;
-        code += content.slice(0, 2000); // prevent huge prompts
+        filesData.push({
+          name: file,
+          path: fullPath,
+          content: content.slice(0, 2000) // prevent huge prompts
+        });
 
       } catch (err) {}
 
@@ -53,23 +55,42 @@ function readFiles(dir) {
 
   }
 
-  return code;
+  return filesData;
+}
+
+
+// 🔎 Mini-RAG search
+function searchFiles(question, files) {
+
+  const q = question.toLowerCase();
+
+  return files
+    .filter(file =>
+      file.content.toLowerCase().includes(q)
+    )
+    .slice(0,5);
 
 }
 
+
 async function askAI(question, repoPath) {
 
-  let code = readFiles(repoPath);
+  const repoFiles = readFiles(repoPath);
 
-  // limit total repo size sent to AI
-  code = code.slice(0, 12000);
+  // 🔎 find relevant files
+  const relevantFiles = searchFiles(question, repoFiles);
+
+  // build context only from those files
+  const context = relevantFiles
+    .map(f => `FILE: ${f.name}\n${f.content}`)
+    .join("\n\n");
 
   const prompt = `
 You are a senior software engineer helping analyze a GitHub repository.
 
-Below is part of the repository code:
+Use the following code files to answer the question.
 
-${code}
+${context}
 
 User question:
 ${question}
@@ -80,7 +101,7 @@ Explain clearly based on the code.
   const response = await axios.post(
     "https://openrouter.ai/api/v1/chat/completions",
     {
-      model: "deepseek/deepseek-chat",
+      model: "deepseek/deepseek-chat-v3",
       messages: [
         { role: "user", content: prompt }
       ]
@@ -93,7 +114,10 @@ Explain clearly based on the code.
     }
   );
 
-  return response.data.choices[0].message.content;
+  return {
+    answer: response.data.choices[0].message.content,
+    sources: relevantFiles.map(f => f.name)
+  };
 
 }
 

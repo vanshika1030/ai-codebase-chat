@@ -13,6 +13,67 @@ app.use(express.json());
 // let currentRepoPath = "";
 global.currentRepoPath = "";
 
+const fs = require("fs");
+const path = require("path");
+
+function getFileTree(dir, base = "") {
+  const files = fs.readdirSync(dir);
+
+  let result = [];
+
+  for (const file of files) {
+
+    if (["node_modules", ".git"].includes(file)) continue;
+
+    const fullPath = path.join(dir, file);
+    const stat = fs.statSync(fullPath);
+
+    const relativePath = path.join(base, file);
+
+    if (stat.isDirectory()) {
+      result.push({
+        type: "folder",
+        name: file,
+        path: relativePath,
+        children: getFileTree(fullPath, relativePath)
+      });
+    } else {
+      result.push({
+        type: "file",
+        name: file,
+        path: relativePath
+      });
+    }
+
+  }
+
+  return result;
+}
+
+app.get("/files", (req, res) => {
+
+  if (!global.currentRepoPath) {
+    return res.json([]);
+  }
+
+  const tree = getFileTree(global.currentRepoPath);
+
+  res.json(tree);
+
+});
+
+app.get("/file", (req, res) => {
+
+  const filePath = req.query.path;
+
+  const fullPath = path.join(global.currentRepoPath, filePath);
+
+  const content = fs.readFileSync(fullPath, "utf8");
+
+  res.json({ content });
+
+});
+
 app.post("/load-repo", async (req, res) => {
 
     const { repoUrl } = req.body;
