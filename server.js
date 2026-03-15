@@ -10,7 +10,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-let currentRepoPath = "";
+// let currentRepoPath = "";
+global.currentRepoPath = "";
 
 app.post("/load-repo", async (req, res) => {
 
@@ -20,7 +21,8 @@ app.post("/load-repo", async (req, res) => {
 
         const repoPath = await cloneRepo(repoUrl);
 
-        currentRepoPath = repoPath;
+      global.currentRepoPath = repoPath;
+
 
         console.log("Repo path set to:", currentRepoPath);
 
@@ -43,7 +45,8 @@ app.post("/chat", async (req, res) => {
 
     const { question } = req.body;
      console.log("Current repo path:", currentRepoPath);
-    if (!currentRepoPath) {
+    if (!global.currentRepoPath) 
+{
         return res.json({
             answer: "Please load a repository first."
         });
@@ -51,7 +54,8 @@ app.post("/chat", async (req, res) => {
 
     try {
 
-        const answer = await askAI(question, currentRepoPath);
+        const answer = await askAI(question, global.currentRepoPath);
+
 
         res.json({ answer });
 

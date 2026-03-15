@@ -14,10 +14,10 @@ async function cloneRepo(repoUrl) {
     try {
 
         // delete existing repo if it exists
-        if (fs.existsSync(localPath)) {
-            console.log("Removing old repo...");
-            fs.rmSync(localPath, { recursive: true, force: true });
-        }
+       if (fs.existsSync(localPath)) {
+    console.log("Repo already exists. Skipping clone.");
+    return localPath;
+}
 
         await git.clone(repoUrl, localPath);
 
