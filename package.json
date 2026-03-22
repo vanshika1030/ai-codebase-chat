@@ -28,6 +28,7 @@
     "nodemon": "^3.1.14",
     "openai": "^6.28.0",
     "react-markdown": "^10.1.0",
-    "simple-git": "^3.33.0"
+    "simple-git": "^3.33.0",
+    "diff": "^5.1.0"
   }
 }
