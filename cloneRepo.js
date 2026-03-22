@@ -7,7 +7,11 @@ const git = simpleGit();
 async function cloneRepo(repoUrl) {
 
     const repoName = repoUrl.split("/").pop().replace(".git", "");
-    const localPath = path.join(__dirname, "repos", repoName);
+    const secDir = path.join("/tmp", "repos");
+    if (!fs.existsSync(secDir)) {
+        fs.mkdirSync(secDir, { recursive: true });
+    }
+    const localPath = path.join(secDir, repoName);
 
     console.log("Cloning repo:", repoUrl);
 
