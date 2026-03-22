@@ -6,8 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-  "build": "webpack --config webpack.config.js"
-
+    "build": "webpack --config webpack.config.js"
   },
   "repository": {
     "type": "git",
@@ -25,13 +24,16 @@
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.13.6",
     "cors": "^2.8.6",
+    "diff": "^5.1.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "langchain": "^1.2.32",
     "nodemon": "^3.1.14",
     "openai": "^6.28.0",
     "react-markdown": "^10.1.0",
-    "simple-git": "^3.33.0",
-    "diff": "^5.1.0"
+    "simple-git": "^3.33.0"
+  },
+  "devDependencies": {
+    "webpack-cli": "^7.0.2"
   }
 }
