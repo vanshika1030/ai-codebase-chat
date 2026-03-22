@@ -9,6 +9,8 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 function App() {
 
+  const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+
   const [repoUrl, setRepoUrl] = useState("");
   const [repoPath, setRepoPath] = useState("");
   const [question, setQuestion] = useState("");
@@ -41,7 +43,7 @@ function App() {
   // fetch repo files
   const fetchFiles = async (path = repoPath) => {
     if (!path) return;
-    const res = await axios.get("http://localhost:3000/files", {
+    const res = await axios.get(`${BACKEND_BASE_URL}/files`, {
       params: { repoPath: path }
     });
     setFiles(res.data);
@@ -53,7 +55,7 @@ function App() {
     setLoading(true);
 
     try {
-      const res = await axios.post("http://localhost:3000/load-repo", {
+      const res = await axios.post(`${BACKEND_BASE_URL}/load-repo`, {
         repoUrl
       });
 
@@ -86,7 +88,7 @@ function App() {
     setLoading(true);
 
     try {
-      const res = await axios.post("http://localhost:3000/chat", {
+      const res = await axios.post(`${BACKEND_BASE_URL}/chat`, {
         question: userMessage.content,
         repoPath
       });
@@ -117,7 +119,7 @@ function App() {
     if (!repoPath) return;
 
     try {
-      const res = await axios.get("http://localhost:3000/file", {
+      const res = await axios.get(`${BACKEND_BASE_URL}/file`, {
         params: { name: path, repoPath }
       });
 
@@ -146,7 +148,7 @@ function App() {
     setIsExplaining(true);
 
     try {
-      const res = await axios.post("http://localhost:3000/explain-file", {
+      const res = await axios.post(`${BACKEND_BASE_URL}/explain-file`, {
         filePath: selectedFile,
         fileContent
       });
@@ -173,7 +175,7 @@ function App() {
     setLoading(true);
 
     try {
-      const res = await axios.post("http://localhost:3000/search", {
+      const res = await axios.post(`${BACKEND_BASE_URL}/search`, {
         query: searchQuery,
         repoPath
       });
@@ -191,7 +193,7 @@ function App() {
     setLoading(true);
 
     try {
-      const res = await axios.post("http://localhost:3000/modify-code", {
+      const res = await axios.post(`${BACKEND_BASE_URL}/modify-code`, {
         query: modRequest,
         repoPath
       });
