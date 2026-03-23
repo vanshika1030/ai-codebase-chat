@@ -1,4 +1,13 @@
 require("dotenv").config();
+
+// Debug: Check if API key is loaded
+if (!process.env.OPENROUTER_API_KEY) {
+  console.warn("⚠️  WARNING: OPENROUTER_API_KEY not found in environment variables!");
+  console.warn("Make sure .env file exists in the root directory with: OPENROUTER_API_KEY=your_key");
+} else {
+  console.log("✓ API key loaded successfully");
+}
+
 const express = require("express");
 const cors = require("cors");
 
@@ -8,61 +17,91 @@ const { createTwoFilesPatch } = require("diff");
 
 const app = express();
 
-app.use(cors());
+// Enhanced CORS with specific domain (update for production)
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "*",
+  credentials: true
+}));
 app.use(express.json());
 
 let currentRepoPath = "";
 
-const fs = require("fs");
+const fs = require("fs").promises;
+const fsSync = require("fs");
 const path = require("path");
 
-function getFileTree(dir, base = "") {
-  const files = fs.readdirSync(dir);
+// Cache for file trees to avoid repeated reads
+const fileTreeCache = new Map();
 
-  let result = [];
+async function getFileTree(dir, base = "") {
+  try {
+    const files = await fs.readdir(dir);
 
-  for (const file of files) {
+    let result = [];
 
-    if (["node_modules", ".git"].includes(file)) continue;
+    for (const file of files) {
 
-    const fullPath = path.join(dir, file);
-    const stat = fs.statSync(fullPath);
+      if (["node_modules", ".git", "dist", "build", ".next", "coverage"].includes(file)) continue;
 
-    const relativePath = path.join(base, file);
+      const fullPath = path.join(dir, file);
+      
+      try {
+        const stat = await fs.stat(fullPath);
 
-    if (stat.isDirectory()) {
-      result.push({
-        type: "folder",
-        name: file,
-        path: relativePath,
-        children: getFileTree(fullPath, relativePath)
-      });
-    } else {
-      result.push({
-        type: "file",
-        name: file,
-        path: relativePath
-      });
+        const relativePath = path.join(base, file);
+
+        if (stat.isDirectory()) {
+          result.push({
+            type: "folder",
+            name: file,
+            path: relativePath,
+            children: await getFileTree(fullPath, relativePath)
+          });
+        } else {
+          result.push({
+            type: "file",
+            name: file,
+            path: relativePath
+          });
+        }
+      } catch (statErr) {
+        // Skip files we can't stat
+      }
+
     }
 
+    return result;
+  } catch (err) {
+    console.error("Error reading directory:", err);
+    return [];
   }
-
-  return result;
 }
 
-app.get("/files", (req, res) => {
+app.get("/files", async (req, res) => {
   const repoDir = req.query.repoPath || currentRepoPath;
 
   if (!repoDir) {
     return res.json([]);
   }
 
-  const tree = getFileTree(repoDir);
+  // Check cache first
+  if (fileTreeCache.has(repoDir)) {
+    return res.json(fileTreeCache.get(repoDir));
+  }
 
-  res.json(tree);
+  try {
+    const tree = await getFileTree(repoDir);
+    // Cache the result for 5 minutes
+    fileTreeCache.set(repoDir, tree);
+    setTimeout(() => fileTreeCache.delete(repoDir), 5 * 60 * 1000);
+    res.json(tree);
+  } catch (err) {
+    console.error("File tree error:", err);
+    res.status(500).json({ error: "Failed to read directory" });
+  }
 });
 
-app.get("/file", (req, res) => {
+app.get("/file", async (req, res) => {
   const filename = req.query.name;
   const repoDir = req.query.repoPath || currentRepoPath;
 
@@ -73,9 +112,10 @@ app.get("/file", (req, res) => {
   const filePath = path.join(repoDir, filename);
 
   try {
-    const content = fs.readFileSync(filePath, "utf8");
+    const content = await fs.readFile(filePath, "utf8");
     res.json({ content });
   } catch (err) {
+    console.error("File read error:", err);
     res.status(500).json({ error: "File not found" });
   }
 });
@@ -119,8 +159,10 @@ app.post("/explain-file", async (req, res) => {
     const explanation = await explainFile(filePath, fileContent);
     res.json({ explanation });
   } catch (err) {
-    console.error("Explain-file error:", err);
-    res.status(500).json({ error: "Failed to explain file" });
+    console.error("Explain-file error:", err.response?.data || err.message || err);
+    res.status(500).json({ 
+      error: err.response?.data?.error || err.message || "Failed to explain file" 
+    });
   }
 });
 
@@ -137,8 +179,8 @@ app.post("/search", async (req, res) => {
     const resultPaths = matches.map(f => f.path);
     res.json({ results: resultPaths });
   } catch (err) {
-    console.error("Search error:", err);
-    res.status(500).json({ error: "Search failed" });
+    console.error("Search error:", err.message || err);
+    res.status(500).json({ error: err.message || "Search failed" });
   }
 });
 
@@ -165,8 +207,8 @@ app.post("/modify-code", async (req, res) => {
       updatedCode: modification.updatedCode
     });
   } catch (err) {
-    console.error("Modify-code error:", err);
-    res.status(500).json({ error: "Modify code failed" });
+    console.error("Modify-code error:", err.response?.data || err.message || err);
+    res.status(500).json({ error: err.response?.data?.error || err.message || "Modify code failed" });
   }
 });
 
@@ -183,16 +225,16 @@ app.post("/chat", async (req, res) => {
 
     try {
 
-        const answer = await askAI(question, targetRepo);
+        const result = await askAI(question, targetRepo);
 
-        res.json({ answer });
+        res.json(result);
 
     } catch (err) {
 
-        console.error("AI error:", err);
+        console.error("AI error:", err.response?.data || err.message || err);
 
         res.status(500).json({
-            error: "AI failed"
+            error: err.response?.data?.error || err.message || "AI failed"
         });
 
     }

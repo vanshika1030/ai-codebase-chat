@@ -1,11 +1,26 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import "./App.css";
 import ReactMarkdown from "react-markdown";
-import DiffViewer from "react-diff-viewer-continued";
+const DiffViewer = React.lazy(() => import("react-diff-viewer-continued"));
 
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+
+// Debounce utility function
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  
+  return debouncedValue;
+}
 
 function App() {
 
@@ -33,12 +48,28 @@ function App() {
 
   const [expandedFolders, setExpandedFolders] = useState(new Set());
 
+  // Response cache to avoid duplicate API calls
+  const responseCacheRef = useRef(new Map());
+
   const messagesEndRef = useRef(null);
+  const debounceSearchRef = useRef(null);
+
+  // Debounce search query with 500ms delay
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // Auto-search when debounced search query changes
+  useEffect(() => {
+    if (debouncedSearchQuery && repoPath) {
+      searchRepoAuto(debouncedSearchQuery);
+    } else if (!debouncedSearchQuery) {
+      setSearchResults([]);
+    }
+  }, [debouncedSearchQuery, repoPath]);
 
   // fetch repo files
   const fetchFiles = async (path = repoPath) => {
@@ -82,6 +113,16 @@ function App() {
   const askQuestion = async () => {
     if (!question || !repoPath) return;
 
+    // Check cache first
+    const cacheKey = `${repoPath}|${question}`;
+    if (responseCacheRef.current.has(cacheKey)) {
+      const cached = responseCacheRef.current.get(cacheKey);
+      const userMessage = { role: "user", content: question };
+      setMessages(prev => [...prev, userMessage, cached]);
+      setQuestion("");
+      return;
+    }
+
     const userMessage = { role: "user", content: question };
     setMessages(prev => [...prev, userMessage]);
     setQuestion("");
@@ -93,21 +134,24 @@ function App() {
         repoPath
       });
 
-      setMessages(prev => [
-        ...prev,
-        {
-          role: "ai",
-          content: res.data.answer,
-          sources: res.data.sources
-        }
-      ]);
+      const aiMessage = {
+        role: "ai",
+        content: res.data.answer,
+        sources: res.data.sources
+      };
+
+      // Cache the response
+      responseCacheRef.current.set(cacheKey, aiMessage);
+
+      setMessages(prev => [...prev, aiMessage]);
     } catch (err) {
-      console.error(err);
+      const errorMsg = err.response?.data?.error || err.message || "Unknown error";
+      console.error("Chat error:", errorMsg, err);
       setMessages(prev => [
         ...prev,
         {
           role: "ai",
-          content: "⚠️ Error getting AI response."
+          content: `⚠️ Error: ${errorMsg}`
         }
       ]);
     }
@@ -125,7 +169,6 @@ function App() {
 
       setSelectedFile(path);
       setFileContent(res.data.content);
-      setFileExplanation("");
       setCodeDiff("");
       setUpdatedCode("");
       setModifiedFile("");
@@ -159,11 +202,12 @@ function App() {
         content: res.data.explanation
       }]);
     } catch (err) {
-      console.error(err);
+      const errorMsg = err.response?.data?.error || err.message || "Unknown error";
+      console.error("Explain file error:", errorMsg, err);
       // Add error message to chat
       setMessages(prev => [...prev, {
         role: "ai",
-        content: "⚠️ Failed to explain file. Please try again."
+        content: `⚠️ Error: ${errorMsg}`
       }]);
     }
 
@@ -172,11 +216,20 @@ function App() {
 
   const searchRepo = async () => {
     if (!searchQuery || !repoPath) return;
+    await searchRepoAuto(searchQuery);
+  };
+
+  const searchRepoAuto = async (query) => {
+    if (!query || !repoPath) {
+      setSearchResults([]);
+      return;
+    }
+
     setLoading(true);
 
     try {
       const res = await axios.post(`${BACKEND_BASE_URL}/search`, {
-        query: searchQuery,
+        query,
         repoPath
       });
       setSearchResults(res.data.results || []);
@@ -462,11 +515,13 @@ function App() {
                   {modifiedFile && (
                     <div className="diff-section">
                       <div className="diff-header">🔄 Changes: {modifiedFile}</div>
-                      <DiffViewer
-                        oldValue={fileContent}
-                        newValue={updatedCode || fileContent}
-                        splitView={true}
-                      />
+                      <React.Suspense fallback={<div className="loading-placeholder">Loading diff viewer...</div>}>
+                        <DiffViewer
+                          oldValue={fileContent}
+                          newValue={updatedCode || fileContent}
+                          splitView={true}
+                        />
+                      </React.Suspense>
                     </div>
                   )}
                 </>
